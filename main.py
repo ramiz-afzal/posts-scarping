@@ -4,6 +4,7 @@ import os
 import time
 import csv
 import urllib.parse
+import json
 
 def get_url_data(url: str = None):
     # sanity check
@@ -27,8 +28,27 @@ def get_url_data(url: str = None):
         return False
 
     body_css_classes = body.get('class', [])
-    if 'post' not in body_css_classes:
+    if 'single-post' not in body_css_classes:
         return False
+    
+    # Get article element for post categories and tag css classes
+    tags        = []
+    categories  = []
+    article     = web_soup.select_one('main.content article.post')
+    if article:
+        article_css_classes = article.get('class', [])
+        if article_css_classes:
+            for css_class in article_css_classes:
+                if 'category-' in css_class:
+                    category = to_title_case(css_class)
+                    if category:
+                        categories.append(category)
+                    pass
+                elif 'tag-' in css_class:
+                    tag = to_title_case(css_class)
+                    if tag:
+                        tags.append(tag)
+
 
     # Get post text content
     body_content = web_soup.find('div', attrs={"class": "entry-content"})
@@ -48,37 +68,68 @@ def get_url_data(url: str = None):
         slug = parsed_URL.path.split('/')[-1]
     else:
         slug = parsed_URL.path
+    slug = slug.replace('.html', '')
 
     # Remove unnecessary elements from the data
     dateModified = body_content.find('meta', attrs={"itemprop": "dateModified"})
     if dateModified:
         dateModified.decompose()
 
-    mainEntityOfPost = body_content.find('meta', attrs={"itemprop": "mainEntityOfPost"})
-    if mainEntityOfPost:
-        mainEntityOfPost.decompose()
+    mainEntityOfPage = body_content.find('meta', attrs={"itemprop": "mainEntityOfPage"})
+    if mainEntityOfPage:
+        mainEntityOfPage.decompose()
+        
+    social_panels = body_content.find_all('div', attrs={"class": "swp_social_panel"})
+    if social_panels:
+        for panel in social_panels:
+            panel.decompose()
 
-    gform = body_content.find('div', attrs={"class": "gform_wrapper"})
-    if gform:
-        gform.decompose()
+    comment_box = body_content.find('div', attrs={"id": "wpdevar_comment_1"})
+    if comment_box:
+        comment_box.decompose()
 
-    iframes = body_content.find_all('iframe')
-    if iframes:
-        for iframe in iframes:
-            iframe.decompose()
+    related_posts = body_content.find('div', attrs={"id": "crp_related"})
+    if related_posts:
+        related_posts.decompose()
 
     scripts = body_content.find_all('script')
     if scripts:
         for script in scripts:
             script.decompose()
 
-    swp = body_content.find('div', attrs={"class": "swp-hidden-panel-wrap"})
-    if swp:
-        swp.decompose()
+    styles = body_content.find_all('style')
+    if styles:
+        for style in styles:
+            style.decompose()
 
     publisher = body_content.find('div', attrs={"itemprop": "publisher"})
     if publisher:
         publisher.decompose()
+        
+    # replace images html
+    image_links = []
+    page_links = body_content.find_all('a')
+    if page_links:
+        for link in page_links:
+            href = link.get('href', '')
+            if 'https://www.lawofficeofdanharris.com/wp-content/' in href:
+                image_links.append(link)
+        
+    if image_links:
+        for link_img in image_links:
+            noscript = link_img.find('noscript')
+            if not noscript:
+                continue
+            
+            img_element = noscript.find('img')
+            if not img_element:
+                continue
+            
+            img_src = link_img.get('href', '')
+            css_classes = " ".join(img_element.get('class', []))
+            html = soup(f'<img src="{img_src}" class="{css_classes}">', 'html5lib')
+            link_img.clear()
+            link_img.append(html.img)
 
     # create a safe post_name
     post_name = "".join([c for c in web_soup.title.string if c.isalpha() or c.isdigit() or c == ' ']).rstrip()
@@ -93,6 +144,8 @@ def get_url_data(url: str = None):
     url_data.update({'content': content})
     url_data.update({'slug': slug})
     url_data.update({'description': seo_description})
+    url_data.update({'categories': json.dumps(categories)})
+    url_data.update({'tags': json.dumps(tags)})
 
     return url_data
 
@@ -125,6 +178,7 @@ def scrap_data():
         if not url:
             continue
 
+        print(f'Scrapping: {url}')
         url_data = get_url_data(url)
         if not url_data:
             continue
@@ -137,12 +191,25 @@ def scrap_data():
 
     output_file_name = f"./results/{time.time()}-posts-data.csv"
     with open(output_file_name, 'w', newline='', encoding='utf-8') as output_file:
-        dict_writer = csv.DictWriter(output_file, ['name','url', 'content', 'slug', 'description'])
+        dict_writer = csv.DictWriter(output_file, ['name','url', 'content', 'slug', 'description', 'categories', 'tags'])
         dict_writer.writeheader()
         dict_writer.writerows(scrapped_data)
     
     print('Data scrapped successfully')
     return
+
+
+# convert kebab string to title * slug dict
+def to_title_case(string: str = None):
+    if not string:
+        return None
+    
+    parts = string.split('-')
+    parts.pop(0)
+    x_slug  = '-'.join(parts)
+    x_title = x_slug.replace('-', ' ').title()
+    return {"slug": x_slug, "title": x_title}
+    
 
 # run program
 scrap_data()
