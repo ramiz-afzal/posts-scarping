@@ -69,12 +69,14 @@ def get_url_data(url: str = None):
     else:
         slug = parsed_URL.path
     slug = slug.replace('.html', '')
-
-    # Remove unnecessary elements from the data
+    
+    # post date
+    post_date = ''
     dateModified = body_content.find('meta', attrs={"itemprop": "dateModified"})
     if dateModified:
-        dateModified.decompose()
+        post_date = dateModified.get('content', '')
 
+    # Remove unnecessary elements from the data
     mainEntityOfPage = body_content.find('meta', attrs={"itemprop": "mainEntityOfPage"})
     if mainEntityOfPage:
         mainEntityOfPage.decompose()
@@ -142,6 +144,7 @@ def get_url_data(url: str = None):
     url_data.update({'name': post_name})
     url_data.update({'url': url})
     url_data.update({'content': content})
+    url_data.update({'date': post_date})
     url_data.update({'slug': slug})
     url_data.update({'description': seo_description})
     url_data.update({'categories': json.dumps(categories)})
@@ -191,7 +194,7 @@ def scrap_data():
 
     output_file_name = f"./results/{time.time()}-posts-data.csv"
     with open(output_file_name, 'w', newline='', encoding='utf-8') as output_file:
-        dict_writer = csv.DictWriter(output_file, ['name','url', 'content', 'slug', 'description', 'categories', 'tags'])
+        dict_writer = csv.DictWriter(output_file, ['name','url', 'content', 'date', 'slug', 'description', 'categories', 'tags'])
         dict_writer.writeheader()
         dict_writer.writerows(scrapped_data)
     
