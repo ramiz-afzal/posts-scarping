@@ -60,6 +60,12 @@ def get_url_data(url: str = None):
     meta_description = web_soup.find('meta', attrs={"name": "description"})
     if meta_description:
         seo_description = meta_description['content']
+        
+    # post featured image
+    featured_image = ''
+    post_image = web_soup.find('meta', attrs={"property": "og:image"})
+    if post_image:
+        featured_image = post_image.get('content', '')
     
     # post slug
     slug = ''
@@ -146,6 +152,7 @@ def get_url_data(url: str = None):
     url_data.update({'content': content})
     url_data.update({'date': post_date})
     url_data.update({'slug': slug})
+    url_data.update({'featured_image': featured_image})
     url_data.update({'description': seo_description})
     url_data.update({'categories': json.dumps(categories)})
     url_data.update({'tags': json.dumps(tags)})
@@ -194,7 +201,7 @@ def scrap_data():
 
     output_file_name = f"./results/{time.time()}-posts-data.csv"
     with open(output_file_name, 'w', newline='', encoding='utf-8') as output_file:
-        dict_writer = csv.DictWriter(output_file, ['name','url', 'content', 'date', 'slug', 'description', 'categories', 'tags'])
+        dict_writer = csv.DictWriter(output_file, ['name','url', 'content', 'date', 'slug', 'featured_image', 'description', 'categories', 'tags'])
         dict_writer.writeheader()
         dict_writer.writerows(scrapped_data)
     

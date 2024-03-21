@@ -1,2 +1,2 @@
-/results
-posts.xml
+*.xml
+*.csv
